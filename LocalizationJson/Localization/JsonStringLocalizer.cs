@@ -39,7 +39,7 @@ namespace Localization.Languages
 
         public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures)
         {
-            var languageValues = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(filePath));
+            var languageValues = GetAllValuesFromJson(filePath);
             var localizedValues = new List<LocalizedString>();
             foreach (var language in languageValues)
                 localizedValues.Add(new LocalizedString(language.Key, language.Value));
@@ -75,7 +75,7 @@ namespace Localization.Languages
             if ((propertyName == null) || (filePath == null))
                 return default;
 
-            var languageValues = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(filePath));
+            var languageValues = GetAllValuesFromJson(filePath);
             var localizedValues = new List<LocalizedString>();
             foreach (var language in languageValues)
             {
@@ -87,5 +87,8 @@ namespace Localization.Languages
 
             return default;
         }
+
+        private Dictionary<string, string> GetAllValuesFromJson(string filePath) => 
+            JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(filePath));
     }
 }
