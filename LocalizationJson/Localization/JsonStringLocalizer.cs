@@ -1,18 +1,20 @@
 ﻿using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Localization;
 using Newtonsoft.Json;
+using System.Text;
 
 namespace Localization.Languages
 {
     public class JsonStringLocalizer : IStringLocalizer
     {
         private readonly IDistributedCache _cache;
-        private readonly JsonSerializer _serializer = new();
         private readonly string _basePath = "Localization/Languages";
+        private readonly string filePath;
 
         public JsonStringLocalizer(IDistributedCache cache)
         {
             _cache = cache;
+            filePath = $"{_basePath}/{Thread.CurrentThread.CurrentCulture.Name}.json";
         }
 
         public LocalizedString this[string name]
@@ -37,25 +39,17 @@ namespace Localization.Languages
 
         public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures)
         {
-            var filePath = $"{_basePath}/{Thread.CurrentThread.CurrentCulture.Name}.json";
-            using var str = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            using var sReader = new StreamReader(str);
-            using var reader = new JsonTextReader(sReader);
-            while (reader.Read())
-            {
-                if (reader.TokenType != JsonToken.PropertyName)
-                    continue;
-                string? key = reader.Value as string;
-                reader.Read();
-                var value = _serializer.Deserialize<string>(reader);
-                yield return new LocalizedString(key, value, false);
-            }
+            var languageValues = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(filePath));
+            var localizedValues = new List<LocalizedString>();
+            foreach (var language in languageValues)
+                localizedValues.Add(new LocalizedString(language.Key, language.Value));
+
+            return localizedValues;
         }
+
         private string? GetString(string key)
         {
-            string? relativeFilePath = $"{_basePath}/{Thread.CurrentThread.CurrentCulture.Name}.json";
-            var fullFilePath = Path.GetFullPath(relativeFilePath);
-            if (File.Exists(fullFilePath))
+            if (File.Exists(Path.GetFullPath(filePath)))
             {
                 var cacheKey = $"locale_{Thread.CurrentThread.CurrentCulture.Name}_{key}";
                 var cacheValue = _cache.GetString(cacheKey);
@@ -64,7 +58,7 @@ namespace Localization.Languages
                     return cacheValue;
                 }
 
-                var result = GetValueFromJSON(key, Path.GetFullPath(relativeFilePath));
+                var result = GetValueFromJSON(key, Path.GetFullPath(filePath));
 
                 if (!string.IsNullOrEmpty(result))
                 {
@@ -75,27 +69,22 @@ namespace Localization.Languages
             }
             return default;
         }
+
         private string? GetValueFromJSON(string propertyName, string filePath)
         {
-            if (propertyName == null)
-            {
+            if ((propertyName == null) || (filePath == null))
                 return default;
-            }
-            if (filePath == null)
+
+            var languageValues = JsonConvert.DeserializeObject<Dictionary<string, string>>(File.ReadAllText(filePath));
+            var localizedValues = new List<LocalizedString>();
+            foreach (var language in languageValues)
             {
-                return default;
-            }
-            using var str = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            using var sReader = new StreamReader(str);
-            using var reader = new JsonTextReader(sReader);
-            while (reader.Read())
-            {
-                if (reader.TokenType == JsonToken.PropertyName && reader.Value as string == propertyName)
+                if (language.Key == propertyName)
                 {
-                    reader.Read();
-                    return _serializer.Deserialize<string>(reader);
+                    return language.Value;
                 }
             }
+
             return default;
         }
     }
